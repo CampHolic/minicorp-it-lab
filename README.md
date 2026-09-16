@@ -1,3 +1,1 @@
-# minicorp-it-lab
-
 
