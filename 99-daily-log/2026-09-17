@@ -1,0 +1,245 @@
+# MiniCorp IT Lab — Day 02
+
+## Windows Server 기반 DC01 구축
+
+### 1. 실습 목표
+
+MiniCorp의 사내 IT 인프라를 가상 환경으로 구축하기 위한 첫 번째 서버를 생성한다.
+
+* VMware Workstation 기반 가상 서버 구축
+* Windows Server 설치
+* 서버 이름 설정
+* VMware NAT 네트워크 구성
+* DC01 고정 IP 설정
+* 향후 Active Directory Domain Services 구축 준비
+
+---
+
+## 2. VMware 환경
+
+### Virtual Machine
+
+| 항목           | 설정                                 |
+| ------------ | ---------------------------------- |
+| VM 이름        | DC01                               |
+| 역할           | Domain Controller                  |
+| OS           | Windows Server 2025 Standard Evaluation |
+| GUI          | Desktop Experience                      |
+| Firmware     | UEFI                                   |
+| Disk         | NVMe                                   |
+| Virtual Disk | `DC01.vmdk`                            |
+| Disk Path    | `I:\VM\MiniCorp\DC01\DC01.vmdk`        |
+| Network      | NAT                                    |
+
+### VMware Network
+
+VMware NAT 네트워크인 VMnet8을 사용한다.
+
+| 항목          | 설정                |
+| ----------- | ----------------- |
+| Network     | VMnet8            |
+| Mode        | NAT               |
+| Subnet      | `192.168.79.0/24` |
+| Subnet Mask | `255.255.255.0`   |
+| Gateway     | `192.168.79.2`    |
+| DHCP Start  | `192.168.79.128`  |
+| DHCP End    | `192.168.79.254`  |
+
+---
+
+## 3. 문제 해결 — VMware NAT Network
+
+Windows Server 설치 후 Ethernet에서 `Media disconnected` 문제가 발생했다.
+
+### 확인 결과
+
+VMware의 Virtual Network Editor에서 VMnet 목록을 확인했으나 처음에는 VMnet0만 존재했다.
+
+```text
+VMnet0 → Bridged
+```
+
+VMnet8(NAT)이 존재하지 않아 NAT 방식으로 설정된 DC01이 네트워크에 연결되지 않는 상태였다.
+
+### 조치
+
+Virtual Network Editor에서 관리자 권한으로 설정을 확인한 후 `Restore Defaults`를 실행했다.
+
+복구 후 기본 VMware 가상 네트워크가 생성되었다.
+
+```text
+VMnet0 → Bridged
+VMnet1 → Host-only
+VMnet8 → NAT
+```
+
+이후 VMware NAT Service도 정상적으로 실행되는 것을 확인했다.
+
+```text
+VMware NAT Service
+START_TYPE         : AUTO_START
+STATUS             : RUNNING
+WIN32_EXIT_CODE    : 0
+```
+
+---
+
+## 4. Windows Server 설치
+
+Windows Server 설치 시 다음 옵션을 사용했다.
+
+```text
+Standard Evaluation (Desktop Experience)
+```
+
+Desktop Experience를 선택하여 Server Manager 및 GUI 기반의 서버 관리가 가능하도록 구성했다.
+
+디스크는 별도의 파티션을 직접 나누지 않고 Windows 설치 프로그램이 기본 시스템 파티션을 생성하도록 했다.
+
+---
+
+## 5. 서버 이름 설정
+
+Windows Server 최초 설치 후 자동으로 생성된 서버 이름:
+
+```text
+WIN-3106HSGAR7N
+```
+
+GUI를 이용하여 서버 이름을 다음과 같이 변경했다.
+
+```text
+MC-DC01
+```
+
+MiniCorp의 첫 번째 Domain Controller 서버로 사용할 예정이다.
+
+---
+
+## 6. 네트워크 구성
+
+VMware VMnet8의 NAT 네트워크에 맞춰 DC01의 IPv4를 고정 설정했다.
+
+### MC-DC01
+
+```text
+IP Address      : 192.168.79.10
+Subnet Mask     : 255.255.255.0
+Default Gateway : 192.168.79.2
+DNS Server      : 192.168.79.2
+```
+
+### 네트워크 구조
+
+```text
+                 VMware Workstation
+                        │
+                     VMnet8
+                      NAT
+               192.168.79.0/24
+                        │
+                        │
+                ┌───────▼────────┐
+                │    MC-DC01     │
+                │ 192.168.79.10  │
+                │ Windows Server │
+                └────────────────┘
+```
+
+---
+
+## 7. 네트워크 테스트
+
+고정 IP 설정 후 VMware NAT Gateway 및 외부 네트워크 연결을 테스트했다.
+
+```powershell
+ping 192.168.79.2
+ping 8.8.8.8
+```
+
+Gateway 및 외부 IP 통신을 확인하여 기본 네트워크 연결을 검증했다.
+
+---
+
+## 8. 현재 구축 상태
+
+현재 MiniCorp Lab의 DC01은 다음 상태다.
+
+```text
+[완료]
+✓ VMware VM 생성
+✓ Windows Server 설치
+✓ Desktop Experience 설치
+✓ UEFI 구성
+✓ VMnet8 NAT 복구
+✓ VMware NAT Service 정상화
+✓ 서버 이름 변경 → MC-DC01
+✓ 고정 IP 설정
+✓ 네트워크 연결 테스트
+
+[다음 실습]
+□ Active Directory Domain Services 설치
+□ DNS 구성
+□ Domain Controller 승격
+□ Active Directory Domain 생성
+□ 도메인: minicorp.local
+□ 사용자 및 그룹 생성
+□ Windows Client VM 생성
+□ Client Domain Join
+□ Group Policy 구성
+```
+
+---
+
+## 9. 오늘의 학습 포인트
+
+### VMware NAT와 VMnet
+
+VMware에서 VM을 NAT 방식으로 사용하려면 NAT 네트워크인 VMnet8이 정상적으로 구성되어 있어야 한다.
+
+단순히 VM 설정에서 `NAT`를 선택하는 것만으로는 충분하지 않으며, 호스트의 VMware 가상 네트워크 구성도 함께 확인해야 한다.
+
+### Domain Controller의 고정 IP
+
+Domain Controller는 향후 Active Directory와 DNS의 핵심 서버가 되므로 DHCP로 주소를 계속 변경하기보다 고정 IP를 사용하는 것이 적절하다.
+
+이번 Lab에서는 다음 주소를 DC01의 고정 IP로 사용한다.
+
+```text
+192.168.79.10
+```
+
+---
+
+## 10. Next Step
+
+다음 실습에서는 `MC-DC01`에 **Active Directory Domain Services(AD DS)** 역할을 설치하고 Domain Controller로 승격한다.
+
+목표 도메인:
+
+```text
+minicorp.local
+```
+
+최종적으로 다음과 같은 MiniCorp 사내 네트워크를 구축하는 것을 목표로 한다.
+
+```text
+                    Internet
+                       │
+                  VMware NAT
+                       │
+              192.168.79.0/24
+                       │
+          ┌────────────┴────────────┐
+          │                         │
+      MC-DC01                   MC-CL01
+   192.168.79.10                 Client
+          │
+   AD DS + DNS
+          │
+   minicorp.local
+```
+
+> **Day 02 완료**
+>
+> 다음 목표: **Active Directory Domain Services 구축**
